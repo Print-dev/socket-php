@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+  <title>Registrar</title>
+</head>
+
+<body>
+  <div class="container mt-5">
+    <form id="form-product">
+      <div class="card">
+        <div class="card-header text-center">
+          <h3>Registro de productos</h3>
+        </div>
+        <div class="card-body mx-5">
+          <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="txtNombre" placeholder="Nombre" required autocomplete="off">
+            <label for="txtNombre" class="form-label">Nombre</label>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="txtTipo" placeholder="Tipo" required autocomplete="off">
+                <label for="txtTipo" class="form-label">Tipo</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-floating mb-3">
+                <input type="text" class="form-control" id="txtPrecio" placeholder="Precio" required autocomplete="off">
+                <label for="txtPrecio" class="form-label">Precio</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer text-end">
+          <button type="submit" class="btn btn-primary">Registrar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</body>
+
+<script>
+  document.addEventListener("DOMContentLoaded", async () => {
+    let ws;
+
+    // Mantiene un indicador para saber si el WebSocket está listo para enviar
+    let wsReady = false;
+
+    (async () => {
+      ws = new WebSocket("ws://localhost:8080");
+
+      ws.onopen = () => {
+        wsReady = true;
+        console.log("WebSocket abierto pe");
+      };
+
+      ws.onclose = () => {
+        wsReady = false;
+        console.log("WebSocket cerrado pe");
+      };
+    })();
+
+    async function obtenerProductos() {
+      const paramsObtener = new URLSearchParams();
+      paramsObtener.append("operation", "obtenerProductos");
+
+      const Fproductos = await fetch(`http://localhost/socketchat/controller/producto.controller.php?operation=obtenerProductos`);
+
+      const productos = await Fproductos.json();
+      console.log("productos: ", productos)
+      return productos;
+    }
+
+    
+
+    async function registrarProducto() {
+      try {
+        const txtNombre = document.querySelector("#txtNombre");
+        const txtTipo = document.querySelector("#txtTipo");
+        const txtPrecio = document.querySelector("#txtPrecio");
+        const formRegistro = new FormData();
+        formRegistro.append("operation", "registrarProducto");
+        formRegistro.append("nombre", txtNombre.value);
+        formRegistro.append("tipo", txtTipo.value);
+        formRegistro.append("precio", txtPrecio.value);
+  
+        const Fregistrado = await fetch(`http://localhost/socketchat/controller/producto.controller.php`, {
+          method: 'POST',
+          body: formRegistro
+        });
+        const registrado = await Fregistrado.json();
+  
+        if (registrado.registrado) {
+          console.log("Producto registrado:", registrado);
+  
+          if (wsReady) {
+            ws.send(JSON.stringify({
+              type: 'registro', // OPERATION: REGISTRO
+              registrado: registrado.registrado
+            }));
+            ws.onmessage = (event) => {
+              try {
+                const data = JSON.parse(event.data);  
+                console.log("Mensaje recibido:", data);
+  
+                if (data.type === "registro") {
+                  console.log(`${data.mensaje}: ${data.datos}`);
+                } else {
+                  console.warn("Tipo de mensaje desconocido:", data.type);
+                }
+              } catch (error) {
+                console.error("Error al procesar el mensaje:", error);
+              }
+            };
+  
+  
+          } else {
+            console.warn("WebSocket no está listo para enviar datos.");
+          }
+  
+          await obtenerProductos();
+        }
+      } catch (error) {
+        console.error("Error al registrar el producto:", error);
+      }
+    }
+
+    // Evento para el formulario
+    document.querySelector("#form-product").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await registrarProducto();
+    });
+  })
+</script>
+
+</html>
